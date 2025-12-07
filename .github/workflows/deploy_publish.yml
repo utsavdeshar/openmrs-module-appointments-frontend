@@ -18,10 +18,8 @@ on:
 
 jobs:
   build-publish-docker-helm:
-    name: Build & Publish Docker Image & Helm Chart
-    runs-on: ubuntu-latest
-    env:
-      HELM_CHART_PATH: package/helm/
+    name: Build & Publish Docker Image
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
       - name: Set env.ARTIFACT_VERSION
@@ -29,15 +27,16 @@ jobs:
           wget -q https://raw.githubusercontent.com/Bahmni/bahmni-infra-utils/main/setArtifactVersion.sh && chmod +x setArtifactVersion.sh
           ./setArtifactVersion.sh
           rm setArtifactVersion.sh
-      - name: Use Node.js 12.x
-        uses: actions/setup-node@v3
+      - name: Use Node.js 14.x
+        uses: actions/setup-node@v1
         with:
-          node-version: '12.22.12'
-      - name: Install dependencies
+          node-version: 14.x
+      - name: Install dependencies ui
+        run:  cd ui && npm install
+      - name: Install dependencies root
         run: npm install
-      - name: Skip Angular test
-        run: echo "Skipping tests temporarily"
-
+      - name: run test
+        run: npm run test
       - name: Build
         run: npm run build
       - name: Set up QEMU
@@ -57,45 +56,45 @@ jobs:
           file: package/docker/Dockerfile
           push: true
           tags: utsavd/appointments:${{env.ARTIFACT_VERSION}},utsavd/appointments:latest
-      - name: Push Translations to Transifex
-        run: |
-          curl -o transifex.sh https://raw.githubusercontent.com/Bahmni/bahmni-infra-utils/main/transifex.sh
-          chmod +x transifex.sh
-          ./transifex.sh push
-          rm transifex.sh
-        env:
-          TX_TOKEN: ${{ secrets.TX_TOKEN }}
-      - name: Helm - Update Version and Image Tag
-        run: |
-          yq --inplace '.image.tag = "${{ env.ARTIFACT_VERSION }}"' $HELM_CHART_PATH/values.yaml
-          yq --inplace '.version = "${{ env.ARTIFACT_VERSION }}"' $HELM_CHART_PATH/Chart.yaml
+      # - name: Push Translations to Transifex
+      #   run: |
+      #     curl -o transifex.sh https://raw.githubusercontent.com/Bahmni/bahmni-infra-utils/main/transifex.sh
+      #     chmod +x transifex.sh
+      #     ./transifex.sh push
+      #     rm transifex.sh
+      #   env:
+      #     TX_TOKEN: ${{ secrets.TX_TOKEN }}
+      # - name: Helm - Update Version and Image Tag
+      #   run: |
+      #     yq --inplace '.image.tag = "${{ env.ARTIFACT_VERSION }}"' $HELM_CHART_PATH/values.yaml
+      #     yq --inplace '.version = "${{ env.ARTIFACT_VERSION }}"' $HELM_CHART_PATH/Chart.yaml
 
-      - name: Helm Lint
-        run: helm lint $HELM_CHART_PATH
+      # - name: Helm Lint
+      #   run: helm lint $HELM_CHART_PATH
 
-      - name: Helm Package
-        run: helm package $HELM_CHART_PATH
+      # - name: Helm Package
+      #   run: helm package $HELM_CHART_PATH
 
-      - name: Helm - Checkout Charts Repository
-        uses: actions/checkout@v2
-        with:
-          repository: Bahmni/helm-charts
-          ref: gh-pages
-          path: helm-charts
-          persist-credentials: false
+      # - name: Helm - Checkout Charts Repository
+      #   uses: actions/checkout@v2
+      #   with:
+      #     repository: Bahmni/helm-charts
+      #     ref: gh-pages
+      #     path: helm-charts
+      #     persist-credentials: false
 
-      - name: Helm - Copy chart
-        run: mkdir -p helm-charts/appointments/ && cp appointments-${{ env.ARTIFACT_VERSION }}.tgz helm-charts/appointments/
+      # - name: Helm - Copy chart
+      #   run: mkdir -p helm-charts/appointments/ && cp appointments-${{ env.ARTIFACT_VERSION }}.tgz helm-charts/appointments/
 
-      - name: Helm - reIndex
-        working-directory: helm-charts/
-        run: helm repo index --merge index.yaml --url https://bahmni.github.io/helm-charts/  .
+      # - name: Helm - reIndex
+      #   working-directory: helm-charts/
+      #   run: helm repo index --merge index.yaml --url https://bahmni.github.io/helm-charts/  .
 
-      - name: Helm - Publish Chart
-        working-directory: helm-charts/
-        run: |
-          git config user.name ${{ secrets.BAHMNI_USERNAME}}
-          git config user.email ${{ secrets.BAHMNI_EMAIL}}
-          git add .
-          git commit -m "Release of bahmni-web-${{ env.ARTIFACT_VERSION }}"
-          git push 'https://${{ secrets.BAHMNI_USERNAME}}:${{ secrets.BAHMNI_PAT}}@github.com/bahmni/helm-charts.git' gh-pages
+      # - name: Helm - Publish Chart
+      #   working-directory: helm-charts/
+      #   run: |
+      #     git config user.name ${{ secrets.BAHMNI_USERNAME}}
+      #     git config user.email ${{ secrets.BAHMNI_EMAIL}}
+      #    git add .
+      #    git commit -m "Release of bahmni-web-${{ env.ARTIFACT_VERSION }}"
+      #    git push 'https://${{ secrets.BAHMNI_USERNAME}}:${{ secrets.BAHMNI_PAT}}@github.com/bahmni/helm-charts.git' gh-pages
